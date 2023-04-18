@@ -1,3 +1,6 @@
+CROWD ANOMALY DETECTION
+
+
 1. Optical flow of blocks (optFlowofblocks.py)
 The module optical flow of blocks is provided with a frame and the optical flow of a
 frame. It divides the frame into blocks of size m x n and sums all the optical flows in each block
