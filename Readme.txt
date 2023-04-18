@@ -5,8 +5,7 @@ and returns it along with details like m, n, size and center of blocks.
 
 2. Motion Influence Generator (motionInfluenceGenerator.py)
 This module is provided with training or testing video and it calculates the motion
-influence map for each frame in that video and also returns the size of the blocks in the motion
-influence map.
+influence map for each frame in that video and also returns the size of the blocks in the motion influence map.
 
 3. Megablock Generator (createMegaBlocks.py)
 This module has 2 functionalities.
@@ -30,3 +29,19 @@ Testing module calls motion influence generator and megablock generator to obtai
 megablocks on a testing video input. It then constructs a minimum distance matrix after loading
 the stored codewords, checks if a megablock is unusual by comparing it against a threshold value
 and displays unusual megablocks and frames.
+
+
+Datset Description
+
+UMN:
+Crowd Escape Panic, 11 Videos, 3 Scenes, Videos: a normal starting section and an abnormal ending section.
+We parcelled each edge into 8×8 non overlapping squares, and set the edge to the most extreme highlight an incentive in the movement impact guides of the preparation pictures. The basis for this methodology is that we expect the unusual exercises to bring about higher movement impact esteems than the typical exercises.
+
+Peds1: 
+clasps of gatherings of individuals strolling towards and away from the camera, and some measure of point of view mutilation. Contains 34 preparing video tests and 36 testing video tests.
+
+Peds2:
+scenes with passer by development corresponding to the camera plane. Contains 16 preparing video tests and 12 testing video tests.
+
+
+
