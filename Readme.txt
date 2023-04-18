@@ -42,6 +42,3 @@ clasps of gatherings of individuals strolling towards and away from the camera, 
 
 Peds2:
 scenes with passer by development corresponding to the camera plane. Contains 16 preparing video tests and 12 testing video tests.
-
-
-
