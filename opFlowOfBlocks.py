@@ -1,53 +1,51 @@
 import cv2
 import numpy as np
-import math
 
-def calcOptFlowOfBlocks(mag,angle,grayImg):
-    
-    rows = grayImg.shape[0]
-    cols = grayImg.shape[1]
-    noOfRowInBlock = 20
-    noOfColInBlock = 20
-   
-    xBlockSize = int(rows / noOfRowInBlock)
-    yBlockSize = int(cols / noOfColInBlock)
-  
-    
-    opFlowOfBlocks = np.zeros((xBlockSize,yBlockSize,2))
-    
-    for index,value in np.ndenumerate(mag):
-        opFlowOfBlocks[int(index[0]/noOfRowInBlock)][int(index[1]/noOfColInBlock)][0] += mag[index[0]][index[1]]
-        opFlowOfBlocks[int(index[0]/noOfRowInBlock)][int(index[1]/noOfColInBlock)][1] += angle[index[0]][index[1]]
 
-    centreOfBlocks = np.zeros((xBlockSize,yBlockSize,2))
-    for index,value in np.ndenumerate(opFlowOfBlocks):
-        opFlowOfBlocks[index[0]][index[1]][index[2]] = float(value)/(noOfRowInBlock*noOfColInBlock)
-        val = opFlowOfBlocks[index[0]][index[1]][index[2]]
+def calcOptFlowOfBlocks(mag, angle, block_size=(20, 20)):
+    """
+    Compute block-wise mean optical-flow features and block centers.
 
-        if(index[2] == 1):
-            angInDeg = math.degrees(val)
-            if(angInDeg > 337.5):
-                k = 0
-            else:
-                q = angInDeg//22.5
-                a1 = q*22.5
-                q1 = angInDeg - a1
-                a2 = (q+2)*22.5
-                q2 =  a2 - angInDeg
-                if(q1 < q2):
-                    k = int(round(a1/45))
-                else:
-                    k = int(round(a2/45))        
-            opFlowOfBlocks[index[0]][index[1]][index[2]] = k
-            theta = val
-            
-        
-        
-        
-        if(index[2] == 0):
-            r = val
-            x = ((index[0] + 1)*noOfRowInBlock)-(noOfRowInBlock/2)
-            y = ((index[1] + 1)*noOfColInBlock)-(noOfColInBlock/2)
-            centreOfBlocks[index[0]][index[1]][0] = x
-            centreOfBlocks[index[0]][index[1]][1] = y
-    return opFlowOfBlocks,noOfRowInBlock,noOfColInBlock,noOfRowInBlock*noOfColInBlock,centreOfBlocks,xBlockSize,yBlockSize
+    Parameters
+    ----------
+    mag : np.ndarray, shape (H, W)
+        Optical-flow magnitude map.
+    angle : np.ndarray, shape (H, W)
+        Optical-flow angle map.
+    block_size : tuple of int, optional
+        (block_height, block_width), default (20, 20).
+
+    Returns
+    -------
+    features : np.ndarray, shape (nH, nW, 2)
+        Mean [magnitude, angle] per block.
+    centres : np.ndarray, shape (nH, nW, 2)
+        (row, col) center coordinates for each block.
+    block_size : tuple of int
+        Echoes the input block_size for reference.
+    """
+    # Smooth magnitude to reduce noise
+    mag_smooth = cv2.GaussianBlur(mag, (5, 5), 0)
+
+    H, W = mag_smooth.shape
+    bh, bw = block_size
+    nH = H // bh
+    nW = W // bw
+
+    features = np.zeros((nH, nW, 2), dtype=np.float32)
+    centres  = np.zeros((nH, nW, 2), dtype=np.float32)
+
+    # Aggregate mean magnitude & angle per block
+    for i in range(nH):
+        for j in range(nW):
+            r0, r1 = i * bh, (i + 1) * bh
+            c0, c1 = j * bw, (j + 1) * bw
+            block_mag = mag_smooth[r0:r1, c0:c1]
+            block_ang = angle    [r0:r1, c0:c1]
+
+            features[i, j, 0] = block_mag.mean()
+            features[i, j, 1] = block_ang.mean()
+
+            centres[i, j] = (r0 + bh / 2, c0 + bw / 2)
+
+    return features, centres, block_size
