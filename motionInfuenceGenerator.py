@@ -1,93 +1,72 @@
 import cv2
 import numpy as np
-import math
-from scipy.spatial import distance
-
-def getThresholdDistance(mag,blockSize):
-    return mag*blockSize
-
-def getThresholdAngle(ang):
-    tAngle = float(math.pi)/2
-    return ang+tAngle,ang-tAngle
-
-def getCentreOfBlock(blck1Indx,blck2Indx,centreOfBlocks):
-    x1 = centreOfBlocks[blck1Indx[0]][blck1Indx[1]][0]
-    y1 = centreOfBlocks[blck1Indx[0]][blck1Indx[1]][1]
-    x2 = centreOfBlocks[blck2Indx[0]][blck2Indx[1]][0]
-    y2 = centreOfBlocks[blck2Indx[0]][blck2Indx[1]][1]
-    slope = float(y2-y1)/(x2-x1) if (x1 != x2) else float("inf")
-    p1=(x1,y1)
-    p2=(x2,y2)
-    return p1,p2,slope
 
 
-def calcEuclideanDist(p1,p2):
-    #p1=(x1,y1)
-    #p2=(x2,y2)
-    #dist = float(((x2-x1)**2 + (y2-y1)**2)**0.5)
-    dist = distance.euclidean(p1, p2)
-    return dist
-def angleBtw2Blocks(ang1,ang2):
-    if(ang1-ang2 < 0):
-        ang1InDeg = math.degrees(ang1)
-        ang2InDeg = math.degrees(ang2)
-        return math.radians(360 - (ang1InDeg-ang2InDeg))
-    return ang1 - ang2
+def motionInfuenceGenerator(videoPath, block_size=(20, 20), resize_to=(320, 240),
+                             pyr_scale=0.5, levels=3, winsize=15, iterations=3,
+                             poly_n=5, poly_sigma=1.2, flags=0):
+    """
+    Generate per-frame block-wise motion-influence features from a video.
 
-def motionInMapGenerator(opFlowOfBlocks,blockSize,centreOfBlocks,xBlockSize,yBlockSize):
-    global frameNo
-    motionInfVal = np.zeros((xBlockSize,yBlockSize,8))
-    for index,value in np.ndenumerate(opFlowOfBlocks[...,0]):
-        Td = getThresholdDistance(opFlowOfBlocks[index[0]][index[1]][0],blockSize)
-        k = opFlowOfBlocks[index[0]][index[1]][1]
-        posFi, negFi =  getThresholdAngle(math.radians(45*(k)))
-        
-        for ind,val in np.ndenumerate(opFlowOfBlocks[...,0]):
-            if(index != ind):
-                (x1,y1),(x2,y2), slope = getCentreOfBlock(index,ind,centreOfBlocks)
-                euclideanDist = calcEuclideanDist((x1,y1),(x2,y2))
-        
-                if(euclideanDist < Td):
-                    angWithXAxis = math.atan(slope)
-                    angBtwTwoBlocks = angleBtw2Blocks(math.radians(45*(k)),angWithXAxis)
-        
-                    if(negFi < angBtwTwoBlocks and angBtwTwoBlocks < posFi):
-                        motionInfVal[ind[0]][ind[1]][int(opFlowOfBlocks[index[0]][index[1]][1])] += math.exp(-1*(float(euclideanDist)/opFlowOfBlocks[index[0]][index[1]][0]))
-    #print("Frame number ", frameNo)
-    frameNo += 1
-    return motionInfVal
+    Parameters
+    ----------
+    videoPath : str
+        Path to the input video file.
+    block_size : tuple(int, int), optional
+        (block_height, block_width) for feature aggregation.
+    resize_to : tuple(int, int), optional
+        (width, height) to resize video frames before processing.
+    pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags :
+        Parameters for cv2.calcOpticalFlowFarneback.
 
+    Returns
+    -------
+    motion_maps : list of np.ndarray
+        Each element has shape (nH, nW, 2), containing mean [magnitude, angle]
+        per block for one frame transition.
+    nH, nW : int
+        Number of blocks along the vertical and horizontal dimensions.
+    """
+    cap = cv2.VideoCapture(videoPath)
+    ret, prev = cap.read()
+    if not ret:
+        raise IOError(f"Cannot read video {videoPath}")
 
-def getMotionInfuenceMap(vid):
-    global frameNo
-    
-    frameNo = 0
-    cap = cv2.VideoCapture(vid)
-    ret, frame1 = cap.read()
-    rows, cols = frame1.shape[0], frame1.shape[1]
-    print(rows,cols)
-    prvs = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
-    motionInfOfFrames = []
-    count = 0
-    while 1:
-       
-        print(count)
-        ret, frame2 = cap.read()
-        if (ret == False):
+    if resize_to:
+        prev = cv2.resize(prev, resize_to)
+
+    prev_gray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
+
+    fb_params = dict(pyr_scale=pyr_scale, levels=levels, winsize=winsize,
+                     iterations=iterations, poly_n=poly_n, poly_sigma=poly_sigma,
+                     flags=flags)
+    motion_maps = []
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
             break
-        next = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
-        flow = cv2.calcOpticalFlowFarneback(prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-       
-        
-        mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])
-        
-        
-        prvs = next
-        opFlowOfBlocks,noOfRowInBlock,noOfColInBlock,blockSize,centreOfBlocks,xBlockSize,yBlockSize = calcOptFlowOfBlocks(mag,ang,next)
-        motionInfVal = motionInMapGenerator(opFlowOfBlocks,blockSize,centreOfBlocks,xBlockSize,yBlockSize)
-        motionInfOfFrames.append(motionInfVal)
-        
-        #if(count == 622):
-        #    break
-        count += 1
-    return motionInfOfFrames, xBlockSize,yBlockSize
+
+        if resize_to:
+            frame = cv2.resize(frame, resize_to)
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # dense optical flow
+        flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, **fb_params)
+        mag, ang = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+
+        # block-wise feature extraction
+        features, centres, _ = calcOptFlowOfBlocks(mag, ang, block_size)
+        motion_maps.append(features)
+
+        prev_gray = gray
+
+    cap.release()
+
+    if not motion_maps:
+        raise ValueError("No frames processed: video may be too short.")
+
+    # derive block-grid dimensions
+    nH, nW = motion_maps[0].shape[:2]
+    return motion_maps, nH, nW
